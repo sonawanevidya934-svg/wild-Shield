@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wild Animal Alert & Tracking – Prototype</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Simple fake-map grid */
+    .grid-bg {
+      background-image: linear-gradient(to right, rgba(0,0,0,.06) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(0,0,0,.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    .fade-in { animation: fade .35s ease-out; }
+    @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <!-- App Shell -->
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col shadow-sm bg-white">
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-200">
+      <div class="px-4 py-3 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-2xl bg-green-600 text-white grid place-content-center font-bold">WA</div>
+        <div>
+          <h1 class="text-lg font-semibold">Wild Animal Alert</h1>
+          <p class="text-xs text-gray-500 leading-tight">Stay safe. Stay aware.</p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+          <span id="statusBadge" class="text-[10px] px-2 py-1 rounded-full bg-amber-100 text-amber-800">Demo Mode</span>
+          <button id="btnMore" class="p-2 rounded-xl hover:bg-gray-100" title="About">⋯</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Views -->
+    <main id="views" class="flex-1 overflow-y-auto">
+      <!-- Splash / Home -->
+      <section id="view-home" class="p-4 space-y-4 fade-in">
+        <div class="rounded-2xl p-4 bg-gradient-to-br from-green-600 to-emerald-500 text-white">
+          <h2 class="text-xl font-semibold">Welcome</h2>
+          <p class="text-sm opacity-90">Report wildlife sightings, get alerts within <b>2 km</b>, and emergency call alerts within <b>500 m</b>.</p>
+          <div class="mt-3 flex gap-2">
+            <button class="btn-primary" onclick="nav('report')">Report Sighting</button>
+            <button class="btn-secondary" onclick="nav('alerts')">View Alerts</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <button onclick="nav('report')" class="card-action">📍<span>Report</span></button>
+          <button onclick="nav('map')" class="card-action">🗺️<span>Live Map</span></button>
+          <button onclick="nav('alerts')" class="card-action">🔔<span>Nearby</span></button>
+          <button onclick="nav('safety')" class="card-action col-span-2">🛟<span>Safety Tips</span></button>
+          <button onclick="nav('settings')" class="card-action">⚙️<span>Settings</span></button>
+        </div>
+
+        <!-- Quick status strip -->
+        <div id="zoneBanner" class="hidden rounded-xl p-3 bg-red-50 border border-red-200 text-red-700 text-sm"></div>
+
+        <div class="p-3 rounded-xl border bg-white">
+          <h3 class="font-medium">Recent Sightings (demo)</h3>
+          <ul id="recentList" class="mt-2 space-y-2 text-sm"></ul>
+        </div>
+      </section>
+
+      <!-- Report -->
+      <section id="view-report" class="hidden p-4 space-y-4 fade-in">
+        <h2 class="text-lg font-semibold">Report Sighting</h2>
+        <div class="space-y-3">
+          <label class="block">
+            <span class="text-sm">Animal</span>
+            <select id="animal" class="w-full mt-1 rounded-xl border p-2">
+              <option>Tiger</option>
+              <option>Leopard</option>
+              <option>Elephant</option>
+              <option>Bear</option>
+              <option>Snake</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-sm">Notes (optional)</span>
+            <textarea id="notes" rows="2" placeholder="Behaviour, direction, count..." class="w-full mt-1 rounded-xl border p-2"></textarea>
+          </label>
+          <label class="block">
+            <span class="text-sm">Photo (optional)</span>
+            <input id="photo" type="file" accept="image/*" class="w-full mt-1" />
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="useGPS" type="checkbox" class="rounded" checked />
+            <label for="useGPS" class="text-sm">Use current location (GPS or Demo)</label>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="block">
+              <span class="text-sm">Latitude</span>
+              <input id="lat" type="number" step="0.000001" class="w-full mt-1 rounded-xl border p-2" />
+            </label>
+            <label class="block">
+              <span class="text-sm">Longitude</span>
+              <input id="lng" type="number" step="0.000001" class="w-full mt-1 rounded-xl border p-2" />
+            </label>
+          </div>
+          <button class="btn-primary w-full" onclick="submitReport()">Submit Report</button>
+          <p id="reportMsg" class="text-sm"></p>
+        </div>
+      </section>
+
+      <!-- Alerts -->
+      <section id="view-alerts" class="hidden p-4 space-y-3 fade-in">
+        <h2 class="text-lg font-semibold">Nearby Alerts</h2>
+        <div class="text-xs text-gray-500">Showing sightings within 2 km of your location.</div>
+        <ul id="alertsList" class="mt-2 space-y-2"></ul>
+      </section>
+
+      <!-- Map -->
+      <section id="view-map" class="hidden p-4 space-y-3 fade-in">
+        <h2 class="text-lg font-semibold">Live Map (prototype)</h2>
+        <div class="rounded-2xl border grid-bg overflow-hidden">
+          <div id="map" class="h-72 relative">
+            <!-- Pins injected here -->
+          </div>
+        </div>
+        <div class="text-xs text-gray-500">This is a prototype grid map with pins and distance rings for demo.</div>
+      </section>
+
+      <!-- Safety Tips -->
+      <section id="view-safety" class="hidden p-4 space-y-3 fade-in">
+        <h2 class="text-lg font-semibold">Safety Tips</h2>
+        <ul class="list-disc pl-5 text-sm space-y-1">
+          <li>Stay calm, do not run. Move away slowly facing the animal.</li>
+          <li>Avoid taking selfies. Keep safe distance.</li>
+          <li>Travel in groups after sunset near forest edges.</li>
+          <li>Call forest helpline or local authorities if danger is close.</li>
+        </ul>
+      </section>
+
+      <!-- Settings -->
+      <section id="view-settings" class="hidden p-4 space-y-4 fade-in">
+        <h2 class="text-lg font-semibold">Settings</h2>
+        <div class="space-y-3">
+          <label class="flex items-center justify-between p-3 rounded-xl border">
+            <span class="text-sm">Demo Mode (use mock GPS)</span>
+            <input id="demoToggle" type="checkbox" class="rounded" checked />
+          </label>
+          <label class="flex items-center justify-between p-3 rounded-xl border">
+            <span class="text-sm">Notifications (prototype)</span>
+            <input type="checkbox" class="rounded" checked />
+          </label>
+          <div class="p-3 rounded-xl border text-xs text-gray-600">
+            <p><b>About:</b> This is a front‑end prototype for classroom demo. No real tracking or network calls.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Nav -->
+    <nav class="sticky bottom-0 bg-white border-t border-gray-200 grid grid-cols-5 text-xs">
+      <button class="tab-btn" data-tab="home">Home</button>
+      <button class="tab-btn" data-tab="report">Report</button>
+      <button class="tab-btn" data-tab="alerts">Alerts</button>
+      <button class="tab-btn" data-tab="map">Map</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </nav>
+  </div>
+
+  <script>
+    // ===== Utilities =====
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => [...document.querySelectorAll(sel)];
+
+    // Haversine distance in km
+    function distanceKm(a, b) {
+      const R = 6371;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLon = (b.lng - a.lng) * Math.PI / 180;
+      const lat1 = a.lat * Math.PI / 180;
+      const lat2 = b.lat * Math.PI / 180;
+      const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(x));
+    }
+
+    // ===== State (demo) =====
+    const state = {
+      demoMode: true,
+      user: { lat: 19.9975, lng: 73.7898 }, // Nashik (demo)
+      sightings: [
+        { id: 1, animal: 'Leopard', lat: 19.9998, lng: 73.7922, notes: 'Seen near canal', time: Date.now() - 15*60*1000 },
+        { id: 2, animal: 'Elephant', lat: 19.985, lng: 73.80, notes: 'Crossing road', time: Date.now() - 55*60*1000 },
+        { id: 3, animal: 'Snake', lat: 19.990, lng: 73.775, notes: 'In field', time: Date.now() - 5*60*60*1000 },
+      ],
+      nextId: 4,
+    };
+
+    // ===== Navigation =====
+    function nav(tab) {
+      $$('#views > section').forEach(s => s.id === 'view-'+tab ? s.classList.remove('hidden') : s.classList.add('hidden'));
+      $$('.tab-btn').forEach(b => b.dataset.tab === tab ? b.classList.add('active') : b.classList.remove('active'));
+      render();
+    }
+
+    // ===== Rendering =====
+    function timeAgo(ts){
+      const d = (Date.now()-ts)/1000; // s
+      if (d < 60) return `${Math.round(d)}s ago`;
+      if (d < 3600) return `${Math.round(d/60)}m ago`;
+      if (d < 86400) return `${Math.round(d/3600)}h ago`;
+      const days = Math.round(d/86400); return days + 'd ago';
+    }
+
+    function renderHome(){
+      const list = $('#recentList');
+      list.innerHTML = '';
+      state.sightings.slice(-5).reverse().forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'p-3 border rounded-lg flex items-center gap-3';
+        li.innerHTML = `
+          <div class="w-10 h-10 rounded-lg grid place-content-center bg-gray-100">${iconFor(s.animal)}</div>
+          <div class="flex-1">
+            <div class="text-sm font-medium">${s.animal} • ${distanceKm(state.user, s).toFixed(2)} km</div>
+            <div class="text-xs text-gray-500">${s.notes || 'No notes'}</div>
+          </div>
+          <div class="text-[11px] text-gray-500">${timeAgo(s.time)}</div>
+        `;
+        list.appendChild(li);
+      });
+
+      // Zone banner logic
+      const nearest = nearestSighting();
+      const banner = $('#zoneBanner');
+      if (nearest && nearest.distKm <= 0.5) {
+        banner.classList.remove('hidden');
+        banner.className = 'rounded-xl p-3 bg-red-50 border border-red-200 text-red-700 text-sm';
+        banner.textContent = `EMERGENCY: ${nearest.s.animal} within ${nearest.distKm.toFixed(2)} km (≤ 0.5 km). Call nearby authorities!`;
+      } else if (nearest && nearest.distKm <= 2) {
+        banner.classList.remove('hidden');
+        banner.className = 'rounded-xl p-3 bg-amber-50 border border-amber-200 text-amber-700 text-sm';
+        banner.textContent = `Alert: ${nearest.s.animal} within ${nearest.distKm.toFixed(2)} km.`;
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function renderAlerts(){
+      const list = $('#alertsList');
+      list.innerHTML = '';
+      const nearby = state.sightings
+        .map(s => ({...s, dist: distanceKm(state.user, s)}))
+        .filter(x => x.dist <= 2)
+        .sort((a,b)=>a.dist-b.dist);
+
+      if (!nearby.length) {
+        list.innerHTML = '<li class="text-sm text-gray-500">No nearby alerts within 2 km.</li>';
+        return;
+      }
+
+      nearby.forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'p-3 border rounded-lg flex items-start gap-3';
+        li.innerHTML = `
+          <div class="w-10 h-10 rounded-lg grid place-content-center bg-gray-100">${iconFor(s.animal)}</div>
+          <div class="flex-1 text-sm">
+            <div class="font-medium">${s.animal} • ${s.dist.toFixed(2)} km</div>
+            <div class="text-gray-600">${s.notes || 'No notes'}</div>
+            <div class="text-[11px] text-gray-500 mt-1">${timeAgo(s.time)}</div>
+          </div>
+          ${s.dist <= 0.5 ? '<button class="px-3 py-1 text-xs rounded-lg bg-red-600 text-white">Call Alert</button>' : ''}
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    function renderMap(){
+      const map = $('#map');
+      map.innerHTML = '';
+
+      // Draw range circles (rough demo)
+      const ring = document.createElement('div');
+      ring.className = 'absolute inset-0';
+      ring.innerHTML = `
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-400/60" style="width: 240px; height: 240px;"></div>
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-red-400/70" style="width: 80px; height: 80px;"></div>
+      `;
+      map.appendChild(ring);
+
+      // User pin (center)
+      const userPin = document.createElement('div');
+      userPin.className = 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2';
+      userPin.innerHTML = '<div class="w-4 h-4 rounded-full bg-blue-600 shadow"></div><div class="text-[10px] mt-1 text-blue-700 text-center">You</div>';
+      map.appendChild(userPin);
+
+      // Place sightings around center using simple offsets (prototype)
+      state.sightings.forEach((s, i) => {
+        const dx = (s.lng - state.user.lng) * 6000; // fake projection
+        const dy = (s.lat - state.user.lat) * -6000;
+        const pin = document.createElement('div');
+        pin.className = 'absolute';
+        pin.style.left = `calc(50% + ${dx}px)`;
+        pin.style.top = `calc(50% + ${dy}px)`;
+        pin.innerHTML = `
+          <div class="w-5 h-5 rounded-full bg-white border grid place-content-center text-[12px]">${iconFor(s.animal)}</div>
+          <div class="text-[10px] mt-0.5 bg-white/80 backdrop-blur px-1 rounded border">${s.animal}</div>
+        `;
+        map.appendChild(pin);
+      });
+    }
+
+    function renderSettings(){
+      $('#demoToggle').checked = state.demoMode;
+      $('#statusBadge').textContent = state.demoMode ? 'Demo Mode' : 'GPS Mode';
+    }
+
+    function render(){
+      const visible = $$('#views > section').find(s => !s.classList.contains('hidden'))?.id || 'view-home';
+      if (visible === 'view-home') renderHome();
+      if (visible === 'view-alerts') renderAlerts();
+      if (visible === 'view-map') renderMap();
+      if (visible === 'view-settings') renderSettings();
+    }
+
+    function iconFor(animal){
+      const map = { Tiger: '🐯', Leopard: '🐆', Elephant: '🐘', Bear: '🐻', Snake: '🐍', Other: '🦊' };
+      return map[animal] || '🐾';
+    }
+
+    function nearestSighting(){
+      if (!state.sightings.length) return null;
+      let best = null;
+      state.sightings.forEach(s => {
+        const d = distanceKm(state.user, s);
+        if (!best || d < best.distKm) best = { s, distKm: d };
+      });
+      return best;
+    }
+
+    // ===== Report flow =====
+    async function getLocation(){
+      return new Promise((resolve) => {
+        if (!state.demoMode && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition((pos)=>{
+            resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          }, ()=>{
+            // fallback to demo
+            resolve(mockAround(state.user));
+          }, { enableHighAccuracy: true, timeout: 2500 });
+        } else {
+          resolve(mockAround(state.user));
+        }
+      });
+    }
+
+    function mockAround(center){
+      const r = Math.random()*0.02 - 0.01; // ~1km random
+      const r2 = Math.random()*0.02 - 0.01;
+      return { lat: center.lat + r, lng: center.lng + r2 };
+    }
+
+    async function submitReport(){
+      const btn = event.target; btn.disabled = true; btn.textContent = 'Submitting...';
+      const useGPS = $('#useGPS').checked;
+      const manual = { lat: parseFloat($('#lat').value), lng: parseFloat($('#lng').value) };
+      const loc = useGPS ? await getLocation() : manual;
+
+      const animal = $('#animal').value;
+      const notes = $('#notes').value.trim();
+
+      if (!animal || isNaN(loc.lat) || isNaN(loc.lng)){
+        $('#reportMsg').className = 'text-sm text-red-600';
+        $('#reportMsg').textContent = 'Please provide valid animal and location.';
+        btn.disabled = false; btn.textContent = 'Submit Report';
+        return;
+      }
+
+      state.sightings.push({ id: state.nextId++, animal, lat: loc.lat, lng: loc.lng, notes, time: Date.now() });
+      $('#reportMsg').className = 'text-sm text-green-700';
+      $('#reportMsg').textContent = 'Report submitted (demo). It will appear in Alerts & Map.';
+      $('#notes').value = ''; $('#photo').value = '';
+      $('#lat').value = ''; $('#lng').value = '';
+
+      btn.disabled = false; btn.textContent = 'Submit Report';
+      nav('alerts');
+    }
+
+    // ===== Events =====
+    $$('.tab-btn').forEach(btn => btn.addEventListener('click', () => nav(btn.dataset.tab)));
+
+    $('#demoToggle').addEventListener('change', (e)=>{
+      state.demoMode = e.target.checked;
+      renderSettings();
+    });
+
+    $('#btnMore').addEventListener('click', ()=>{
+      alert('Wild Animal Alert – Classroom Prototype\n\n• Alerts within 2 km\n• Emergency call hint within 500 m\n• Map pins and report flow (no backend)');
+    });
+
+    // Prefill manual coords with demo
+    const d = mockAround(state.user); $('#lat').value = d.lat.toFixed(6); $('#lng').value = d.lng.toFixed(6);
+
+    // Tailwind-styled button helpers (attach classes after DOM available)
+    function applyUI() {
+      const css = document.createElement('style');
+      css.textContent = `
+        .btn-primary{ @apply px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 active:scale-[.99]; }
+        .btn-secondary{ @apply px-4 py-2 rounded-xl bg-white text-green-700 border border-white/60 hover:bg-white/10; }
+        .card-action{ @apply rounded-2xl p-4 border bg-white hover:bg-gray-50 flex flex-col items-center justify-center gap-2; }
+        .tab-btn{ @apply py-2.5 font-medium text-gray-600 hover:bg-gray-50; }
+        .tab-btn.active{ @apply text-green-700 border-t-2 border-green-600; }
+      `;
+      document.head.appendChild(css);
+    }
+
+    applyUI();
+    nav('home');
+  </script>
+</body>
+</html>
